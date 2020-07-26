@@ -52,7 +52,7 @@ index ba094be6f..5a16ce7c7 100755
 +_ACEOF
 +
      ;;
-   *-netbsd*)
+   *-netbsd* | *-openbsd*)
      SECTION_FLAGS='-ffunction-sections -fdata-sections'
 -- 
 2.17.0
