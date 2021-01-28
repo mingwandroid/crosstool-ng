@@ -98,6 +98,12 @@ glibc_backend_once()
 
     CT_DoStep INFO "Building for multilib ${multi_index}/${multi_count}: '${multi_flags}'"
 
+    OLD_LD_LIBRARY_PATH=
+    if [[ -n ${LD_LIBRARY_PATH} ]]; then
+      OLD_LD_LIBRARY_PATH=${LD_LIBRARY_PATH}
+      unset LD_LIBRARY_PATH
+    fi
+
     # Ensure sysroot (with suffix, if applicable) exists
     CT_DoExecLog ALL mkdir -p "${multi_root}"
 
@@ -430,6 +436,11 @@ glibc_backend_once()
             glibc_locales
         fi
     fi # libc_mode = final
+
+    OLD_LD_LIBRARY_PATH=
+    if [[ -n ${OLD_LD_LIBRARY_PATH} ]]; then
+      export LD_LIBRARY_PATH=${OLD_LD_LIBRARY_PATH}
+    fi
 
     CT_EndStep
 }
