@@ -1,0 +1,119 @@
+From 9e50a9eadfb69772d1d7d213f8a1425bd4b4bda7 Mon Sep 17 00:00:00 2001
+From: Joseph Myers <joseph@codesourcery.com>
+Date: Mon, 12 Nov 2018 18:47:05 +0000
+Subject: [PATCH 102/102] Fix i686 build with GCC 9.
+
+This patch fixes the glibc build for i686 with current mainline GCC,
+where there are warnings about inconsistent attributes for aliases in
+certain files defining libm IFUNCs.
+
+In three of the files, the aliases were defined in terms of internal
+symbols such as __sinf, and copied attributes from file-local
+declarations of those functions which lacked the nothrow attribute.
+Since the nothrow attribute is present on the declarations from
+<math.h> (which include declarations of those __-prefixed functions),
+the natural fix was to include <math.h> in those files, replacing the
+local declarations.
+
+In the other three files, a more complicated __hidden_ver1 call was
+involved in the warnings.  <math.h> has not been included at this
+point and, furthermore, it is included indirectly only later in the
+source file after macros have been defined to remap a function name
+therein.  So there isn't an obvious declaration from which to copy the
+attribute and it seems simplest and safest just to add __THROW to the
+hidden_ver1 calls.
+
+Tested for i686 (build-many-glibcs.py compilers build for
+x86_64-linux-gnu with GCC mainline; full testsuite run with GCC 7).
+
+	* sysdeps/i386/i686/fpu/multiarch/e_expf.c [SHARED]: Use __THROW
+	with __hidden_ver1 call.
+	* sysdeps/i386/i686/fpu/multiarch/e_log2f.c [SHARED]: Likewise.
+	* sysdeps/i386/i686/fpu/multiarch/e_logf.c [SHARED]: Likewise.
+	* sysdeps/i386/i686/fpu/multiarch/s_cosf.c: Include <math.h>.
+	(__cosf): Do not declare here.
+	* sysdeps/i386/i686/fpu/multiarch/s_sincosf.c: Include <math.h>.
+	(__sincosf): Do not declare here.
+	* sysdeps/i386/i686/fpu/multiarch/s_sinf.c: Include <math.h>.
+	(__sinf): Do not declare here.
+---
+ ChangeLog                                | 13 +++++++++++++
+ sysdeps/i386/i686/fpu/multiarch/e_expf.c |  1 -
+ sysdeps/i386/i686/fpu/multiarch/s_cosf.c |  1 -
+ sysdeps/x86_64/multiarch/memcpy.c        |  2 +-
+ sysdeps/x86_64/multiarch/memmove.c       |  2 +-
+ 5 files changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/ChangeLog b/ChangeLog
+index 8d434380e1..ffef94711a 100644
+--- a/ChangeLog
++++ b/ChangeLog
+@@ -1,3 +1,16 @@
++2018-11-12  Joseph Myers  <joseph@codesourcery.com>
++
++	* sysdeps/i386/i686/fpu/multiarch/e_expf.c [SHARED]: Use __THROW
++	with __hidden_ver1 call.
++	* sysdeps/i386/i686/fpu/multiarch/e_log2f.c [SHARED]: Likewise.
++	* sysdeps/i386/i686/fpu/multiarch/e_logf.c [SHARED]: Likewise.
++	* sysdeps/i386/i686/fpu/multiarch/s_cosf.c: Include <math.h>.
++	(__cosf): Do not declare here.
++	* sysdeps/i386/i686/fpu/multiarch/s_sincosf.c: Include <math.h>.
++	(__sincosf): Do not declare here.
++	* sysdeps/i386/i686/fpu/multiarch/s_sinf.c: Include <math.h>.
++	(__sinf): Do not declare here.
++
+ 2018-11-12  Joseph Myers  <joseph@codesourcery.com>
+ 
+        * sysdeps/ia64/fpu/sfp-machine.h (__LITTLE_ENDIAN): Remove.
+diff --git a/sysdeps/i386/i686/fpu/multiarch/e_expf.c b/sysdeps/i386/i686/fpu/multiarch/e_expf.c
+index 388cf98a39..56794fb25b 100644
+--- a/sysdeps/i386/i686/fpu/multiarch/e_expf.c
++++ b/sysdeps/i386/i686/fpu/multiarch/e_expf.c
+@@ -17,7 +17,6 @@
+    <http://www.gnu.org/licenses/>.  */
+ 
+ #include <init-arch.h>
+-
+ extern double __ieee754_expf_sse2 (double);
+ extern double __ieee754_expf_ia32 (double);
+ 
+diff --git a/sysdeps/i386/i686/fpu/multiarch/s_cosf.c b/sysdeps/i386/i686/fpu/multiarch/s_cosf.c
+index af588de9dc..9bdbadec41 100644
+--- a/sysdeps/i386/i686/fpu/multiarch/s_cosf.c
++++ b/sysdeps/i386/i686/fpu/multiarch/s_cosf.c
+@@ -20,7 +20,6 @@
+ 
+ extern float __cosf_sse2 (float);
+ extern float __cosf_ia32 (float);
+-float __cosf (float);
+ 
+ libm_ifunc (__cosf, HAS_CPU_FEATURE (SSE2) ? __cosf_sse2 : __cosf_ia32);
+ weak_alias (__cosf, cosf);
+diff --git a/sysdeps/x86_64/multiarch/memcpy.c b/sysdeps/x86_64/multiarch/memcpy.c
+index 6a2d3539e2..87525c1edc 100644
+--- a/sysdeps/x86_64/multiarch/memcpy.c
++++ b/sysdeps/x86_64/multiarch/memcpy.c
+@@ -32,7 +32,7 @@ libc_ifunc_redirected (__redirect_memcpy, __new_memcpy,
+ 		       IFUNC_SELECTOR ());
+ 
+ __hidden_ver1 (__new_memcpy, __GI_memcpy, __redirect_memcpy)
+-  __attribute__ ((visibility ("hidden")));
++  __attribute__ ((visibility ("hidden"))) __THROW;
+ 
+ # include <shlib-compat.h>
+ versioned_symbol (libc, __new_memcpy, memcpy, GLIBC_2_14);
+diff --git a/sysdeps/x86_64/multiarch/memmove.c b/sysdeps/x86_64/multiarch/memmove.c
+index 0b01b16d69..2410a96fda 100644
+--- a/sysdeps/x86_64/multiarch/memmove.c
++++ b/sysdeps/x86_64/multiarch/memmove.c
+@@ -32,6 +32,6 @@ libc_ifunc_redirected (__redirect_memmove, __libc_memmove,
+ strong_alias (__libc_memmove, memmove);
+ # ifdef SHARED
+ __hidden_ver1 (__libc_memmove, __GI_memmove, __redirect_memmove)
+-  __attribute__ ((visibility ("hidden")));
++  __attribute__ ((visibility ("hidden"))) __THROW;
+ # endif
+ #endif
+-- 
+2.30.0
+
