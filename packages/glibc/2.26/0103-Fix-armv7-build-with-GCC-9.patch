@@ -1,0 +1,56 @@
+From f578f97b97c8b46ec85a81a186c55db9c5a3c8cf Mon Sep 17 00:00:00 2001
+From: Joseph Myers <joseph@codesourcery.com>
+Date: Mon, 12 Nov 2018 23:59:05 +0000
+Subject: [PATCH] Fix armv7 build with GCC 9.
+
+Similar to the x86_64 build issues, glibc fails to build for armv7
+with current mainline GCC because of aliases declared in the course of
+defining IFUNCs, which copy their attributes from a header
+declaration, ending up with fewer attributes than the (built-in)
+string function they alias: the relevant attributes (nonnull, leaf)
+are present on the header declaration, but elided therefrom when glibc
+itself if being built (whatever the reasons are for disabling the
+nonnull and leaf attributes in that case, and whether or not those
+reasons are actually still valid).  This patch fixes the issue
+similarly to the x86_64 fix, by adding an addition __attribute_copy__
+use (in this case, on the definition of arm_libc_ifunc_hidden_def).
+
+Tested with build-many-glibcs.py build for armeb-linux-gnueabi-be8.
+
+	* sysdeps/arm/arm-ifunc.h [SHARED] (arm_libc_ifunc_hidden_def):
+	Use __attribute_copy__ to copy attributes from name.
+---
+ ChangeLog               | 3 +++
+ sysdeps/arm/arm-ifunc.h | 3 ++-
+ 2 files changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/ChangeLog b/ChangeLog
+index fd9ba11e6f..6372ec74df 100644
+--- a/ChangeLog
++++ b/ChangeLog
+@@ -1,5 +1,8 @@
+ 2018-11-12  Joseph Myers  <joseph@codesourcery.com>
+ 
++	* sysdeps/arm/arm-ifunc.h [SHARED] (arm_libc_ifunc_hidden_def):
++	Use __attribute_copy__ to copy attributes from name.
++
+ 	* sysdeps/i386/i686/fpu/multiarch/e_expf.c [SHARED]: Use __THROW
+ 	with __hidden_ver1 call.
+ 	* sysdeps/i386/i686/fpu/multiarch/e_log2f.c [SHARED]: Likewise.
+diff --git a/sysdeps/arm/arm-ifunc.h b/sysdeps/arm/arm-ifunc.h
+index 80f4f0e3a3..71fb172b3b 100644
+--- a/sysdeps/arm/arm-ifunc.h
++++ b/sysdeps/arm/arm-ifunc.h
+@@ -27,7 +27,8 @@
+ #if defined SHARED
+ # define arm_libc_ifunc_hidden_def(redirect_name, name) \
+   __hidden_ver1 (name, __GI_##name, redirect_name) \
+-    __attribute__ ((visibility ("hidden")))
++    __attribute__ ((visibility ("hidden"))) \
++    __attribute_copy__ (name)
+ #else
+ # define arm_libc_ifunc_hidden_def(redirect_name, name)
+ #endif
+-- 
+2.30.0
+
