@@ -1,4 +1,4 @@
-From cba932a5a9e91cffd7f4172d7e91f9b2efb1f84b Mon Sep 17 00:00:00 2001
+From 40423ae57b7b34efc2b8fb7741c2e4f0151ff1ce Mon Sep 17 00:00:00 2001
 From: Florian Weimer <fweimer@redhat.com>
 Date: Tue, 12 Nov 2019 12:41:34 +0100
 Subject: [PATCH] slotinfo in struct dtv_slotinfo_list should be flexible array
@@ -12,18 +12,20 @@ not attempt to determine the size of the flexible array member slotinfo.
 Change-Id: I51be146a7857186a4ede0bb40b332509487bdde8
 ---
  csu/libc-tls.c             | 34 ++++++++++++++--------------------
+ include/array_length.h     | 36 ++++++++++++++++++++++++++++++++++++
  nptl_db/db-symbols.h       |  3 +++
  nptl_db/db_info.c          |  6 ++++++
  nptl_db/structs.def        |  2 +-
  nptl_db/thread_dbP.h       |  4 ++++
  sysdeps/generic/ldsodefs.h |  2 +-
- 6 files changed, 29 insertions(+), 22 deletions(-)
+ 7 files changed, 65 insertions(+), 22 deletions(-)
+ create mode 100644 include/array_length.h
 
 diff --git a/csu/libc-tls.c b/csu/libc-tls.c
-index 33d8b61e16..f9e5437d43 100644
+index 3c897bf28b..01f0a4299b 100644
 --- a/csu/libc-tls.c
 +++ b/csu/libc-tls.c
-@@ -23,7 +23,7 @@
+@@ -22,7 +22,7 @@
  #include <unistd.h>
  #include <stdio.h>
  #include <sys/param.h>
@@ -32,7 +34,7 @@ index 33d8b61e16..f9e5437d43 100644
  
  #ifdef SHARED
   #error makefile bug, this file is for static only
-@@ -32,17 +32,11 @@
+@@ -31,17 +31,11 @@
  dtv_t _dl_static_dtv[2 + TLS_SLOTINFO_SURPLUS];
  
  
@@ -55,7 +57,7 @@ index 33d8b61e16..f9e5437d43 100644
  
  /* Highest dtv index currently needed.  */
  size_t _dl_tls_max_dtv_idx;
-@@ -72,16 +66,16 @@ TLS_INIT_HELPER
+@@ -71,16 +65,16 @@ TLS_INIT_HELPER
  static void
  init_slotinfo (void)
  {
@@ -78,7 +80,7 @@ index 33d8b61e16..f9e5437d43 100644
  }
  
  static void
-@@ -205,8 +199,8 @@ __libc_setup_tls (void)
+@@ -204,8 +198,8 @@ __libc_setup_tls (void)
    main_map->l_tls_modid = 1;
  
    init_slotinfo ();
@@ -89,8 +91,50 @@ index 33d8b61e16..f9e5437d43 100644
  
    memsz = roundup (memsz, align ?: 1);
  
+diff --git a/include/array_length.h b/include/array_length.h
+new file mode 100644
+index 0000000000..12c5126f1c
+--- /dev/null
++++ b/include/array_length.h
+@@ -0,0 +1,36 @@
++/* The array_length and array_end macros.
++   Copyright (C) 2017-2021 Free Software Foundation, Inc.
++   This file is part of the GNU C Library.
++
++   The GNU C Library is free software; you can redistribute it and/or
++   modify it under the terms of the GNU Lesser General Public
++   License as published by the Free Software Foundation; either
++   version 2.1 of the License, or (at your option) any later version.
++
++   The GNU C Library is distributed in the hope that it will be useful,
++   but WITHOUT ANY WARRANTY; without even the implied warranty of
++   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++   Lesser General Public License for more details.
++
++   You should have received a copy of the GNU Lesser General Public
++   License along with the GNU C Library; if not, see
++   <https://www.gnu.org/licenses/>.  */
++
++#ifndef _ARRAY_LENGTH_H
++#define _ARRAY_LENGTH_H
++
++/* array_length (VAR) is the number of elements in the array VAR.  VAR
++   must evaluate to an array, not a pointer.  */
++#define array_length(var)                                               \
++  (sizeof (var) / sizeof ((var)[0])                                     \
++   + 0 * sizeof (struct {                                               \
++       _Static_assert (!__builtin_types_compatible_p                    \
++                       (__typeof (var), __typeof (&(var)[0])),          \
++                       "argument must be an array");                    \
++   }))
++
++/* array_end (VAR) is a pointer one past the end of the array VAR.
++   VAR must evaluate to an array, not a pointer.  */
++#define array_end(var) (&(var)[array_length (var)])
++
++#endif /* _ARRAY_LENGTH_H */
 diff --git a/nptl_db/db-symbols.h b/nptl_db/db-symbols.h
-index 8b078b013e..7c53d803bf 100644
+index 1572ed58ba..dabc021823 100644
 --- a/nptl_db/db-symbols.h
 +++ b/nptl_db/db-symbols.h
 @@ -25,6 +25,7 @@
@@ -111,7 +155,7 @@ index 8b078b013e..7c53d803bf 100644
  # undef DB_SYMBOL
  # undef DB_VARIABLE
 diff --git a/nptl_db/db_info.c b/nptl_db/db_info.c
-index af7f754b32..40efe1a29b 100644
+index cdf966632b..8f8c40d2e6 100644
 --- a/nptl_db/db_info.c
 +++ b/nptl_db/db_info.c
 @@ -56,6 +56,9 @@ extern bool __nptl_initial_report_events;
@@ -135,7 +179,7 @@ index af7f754b32..40efe1a29b 100644
  #define DB_ARRAY_VARIABLE(name) ARRAY_DESC (_thread_db_##name, 0, name)
  #define DB_SYMBOL(name)	/* Nothing.  */
 diff --git a/nptl_db/structs.def b/nptl_db/structs.def
-index f834d1d74c..a3aa71aade 100644
+index 8a65afd658..ffdd4c294a 100644
 --- a/nptl_db/structs.def
 +++ b/nptl_db/structs.def
 @@ -110,7 +110,7 @@ DB_RTLD_GLOBAL_FIELD (dl_tls_dtv_slotinfo_list)
@@ -148,7 +192,7 @@ index f834d1d74c..a3aa71aade 100644
  DB_STRUCT (dtv_slotinfo)
  DB_STRUCT_FIELD (dtv_slotinfo, gen)
 diff --git a/nptl_db/thread_dbP.h b/nptl_db/thread_dbP.h
-index 1dbb543d83..cf6a2b0221 100644
+index c88ee2923f..1ced8fd179 100644
 --- a/nptl_db/thread_dbP.h
 +++ b/nptl_db/thread_dbP.h
 @@ -37,12 +37,14 @@ enum
@@ -183,10 +227,10 @@ index 1dbb543d83..cf6a2b0221 100644
  # undef DB_SYMBOL
  # undef DB_VARIABLE
 diff --git a/sysdeps/generic/ldsodefs.h b/sysdeps/generic/ldsodefs.h
-index f3ba13ee68..a6991f3ac7 100644
+index 4508365871..28b7e1e694 100644
 --- a/sysdeps/generic/ldsodefs.h
 +++ b/sysdeps/generic/ldsodefs.h
-@@ -420,7 +420,7 @@ struct rtld_global
+@@ -395,7 +395,7 @@ struct rtld_global
      {
        size_t gen;
        struct link_map *map;
